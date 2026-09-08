@@ -52,7 +52,7 @@ class DaviColumn<DATA> extends ChangeNotifier {
         _sortPriority = math.max(1, sortPriority),
         _width = width,
         _grow = grow != null ? math.max(1, grow) : null,
-        dataComparator = dataComparator ?? _defaultDataComparator {
+        dataComparator = dataComparator ?? DaviComparator._default() {
     int count = 0;
     if (cellValue != null) count++;
     if (cellIcon != null) count++;
@@ -251,65 +251,68 @@ SemanticsProperties _defaultSemanticsBuilder(SemanticsBuilderParams params) {
   return const SemanticsProperties(enabled: true, label: 'cell');
 }
 
-/// Signature for sort column function.
-typedef DaviComparator<DATA> = int Function(
-    dynamic cellValueA, dynamic cellValueB, DATA rowA, DATA rowB);
+class DaviComparator<DATA> {
+  const DaviComparator(this._fn);
+
+  /// Signature for sort column function.
+  final int Function(
+      dynamic cellValueA, dynamic cellValueB, DATA rowA, DATA rowB) _fn;
+
+  DaviComparator._default()
+      : _fn = ((dynamic cellValueA, dynamic cellValueB, Object? rowA,
+            Object? rowB) {
+          if (cellValueA == null && cellValueB == null) return 0;
+
+          // 'a' is null, so 'b' is considered greater
+          if (cellValueA == null) return -1;
+
+          // 'b' is null, so 'a' is considered greater
+          if (cellValueB == null) return 1;
+
+          if (cellValueA is String && cellValueB is String) {
+            return cellValueA.compareTo(cellValueB);
+          }
+
+          if (cellValueA is int && cellValueB is int) {
+            return cellValueA.compareTo(cellValueB);
+          }
+
+          if (cellValueA is double && cellValueB is double) {
+            return cellValueA.compareTo(cellValueB);
+          }
+
+          if (cellValueA.runtimeType == cellValueB.runtimeType &&
+              cellValueA is Comparable &&
+              cellValueB is Comparable) {
+            return cellValueA.compareTo(cellValueB);
+          }
+
+          return 0;
+        });
+
+  factory DaviComparator.boolean(bool Function(DATA item) getValue) {
+    return DaviComparator((_, __, a, b) {
+      final x = getValue(a);
+      final y = getValue(b);
+
+      if (x == y) return 0;
+      return x ? 1 : -1;
+    });
+  }
+
+  static DaviComparator<DATA> comparable<DATA, T extends Comparable<T>>(
+      T Function(DATA item) getValue) {
+    return DaviComparator((_, __, a, b) => getValue(a).compareTo(getValue(b)));
+  }
+
+  int call(dynamic cellValueA, dynamic cellValueB, DATA rowA, DATA rowB) {
+    return _fn(cellValueA, cellValueB, rowA, rowB);
+  }
+}
 
 int _defaultSpanProvider(SpanParams params) => 1;
 
 String _defaultCellValueStringify(dynamic value) => value.toString();
-
-int _defaultDataComparator<DATA>(
-    dynamic cellValueA, dynamic cellValueB, DATA rowA, DATA rowB) {
-  // Check if both values are null
-  if (cellValueA == null && cellValueB == null) {
-    // They are equal
-    return 0;
-  }
-  if (cellValueA == null) {
-    // 'a' is null, so 'b' is considered greater
-    return -1;
-  }
-  if (cellValueB == null) {
-    // 'b' is null, so 'a' is considered greater
-    return 1;
-  }
-
-  if (cellValueA is String && cellValueB is String) {
-    if (cellValueA == cellValueB) {
-      return 0;
-    }
-    // String comparison is lexicographic
-    return cellValueA.compareTo(cellValueB);
-  }
-
-  // Comparison when both values are not null
-  if (cellValueA is int && cellValueB is int) {
-    if (cellValueA > cellValueB) {
-      return 1;
-    }
-    if (cellValueA < cellValueB) {
-      return -1;
-    }
-  }
-
-  if (cellValueA is double && cellValueB is double) {
-    if (cellValueA > cellValueB) {
-      return 1;
-    }
-    if (cellValueA < cellValueB) {
-      return -1;
-    }
-  }
-
-  if (cellValueA.runtimeType == cellValueB.runtimeType &&
-      cellValueA is Comparable &&
-      cellValueB is Comparable) {
-    return cellValueA.compareTo(cellValueB);
-  }
-
-  return 0;
-}
 
 /// A typedef for a function that converts a dynamic value into a String.
 ///
