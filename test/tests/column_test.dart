@@ -1,5 +1,6 @@
 import 'package:davi/davi.dart';
 import 'package:davi/src/column.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -18,7 +19,8 @@ void main() {
 
     test('boolean and comparable factories sort rows', () {
       final booleanComparator = DaviComparator.boolean((bool value) => value);
-      final comparableComparator = DaviComparator.comparable((String value) => value);
+      final comparableComparator =
+          DaviComparator.comparable((String value) => value);
 
       expect(booleanComparator(null, null, false, true), lessThan(0));
       expect(comparableComparator(null, null, 'a', 'b'), lessThan(0));
@@ -26,6 +28,13 @@ void main() {
   });
 
   group('DaviColumn', () {
+    test('accepts a custom header widget', () {
+      const headerWidget = SizedBox();
+      final column = DaviColumn(headerWidget: headerWidget);
+
+      expect(column.headerWidget, same(headerWidget));
+    });
+
     test('setting sort', () {
       DaviColumn column = DaviColumn(id: 'id', sortable: true);
       DaviColumnHelper.setSort(

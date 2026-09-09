@@ -53,7 +53,7 @@ class _DaviHeaderCellState extends State<DaviHeaderCell> {
     children.add(AxisLayoutChild(
         shrink: theme.expandableName ? 0 : 1,
         expand: theme.expandableName ? 1 : 0,
-        child: _textWidget(context)));
+        child: _contentWidget(context)));
 
     final DaviSortDirection? sortDirection = widget.column.sortDirection;
     if (sortDirection != null) {
@@ -112,17 +112,19 @@ class _DaviHeaderCellState extends State<DaviHeaderCell> {
         child: ClipRect(child: header));
   }
 
-  Widget _textWidget(BuildContext context) {
+  Widget _contentWidget(BuildContext context) {
     DaviThemeData theme = DaviTheme.of(context);
-    Widget? text;
-    if (widget.column.name != null) {
-      text = Text(widget.column.name!,
+    Widget? child = widget.column.headerWidget;
+
+    if (child == null && widget.column.name != null) {
+      child = Text(widget.column.name!,
           overflow: TextOverflow.ellipsis,
           style: widget.column.headerTextStyle ?? theme.headerCell.textStyle);
     }
+
     return Align(
         alignment: widget.column.headerAlignment ?? theme.headerCell.alignment,
-        child: text);
+        child: child);
   }
 
   Widget _resizeWidget({required BuildContext context, required resizing}) {

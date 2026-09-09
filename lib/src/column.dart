@@ -18,6 +18,7 @@ class DaviColumn<DATA> extends ChangeNotifier {
       double width = 100,
       double? grow,
       this.name,
+      this.headerWidget,
       this.headerPadding,
       this.cellPadding,
       this.headerAlignment,
@@ -75,6 +76,13 @@ class DaviColumn<DATA> extends ChangeNotifier {
 
   /// Optional column name. Displayed by default in the cell header widget.
   final String? name;
+
+  /// An optional widget displayed as the main content of the column header.
+  ///
+  /// When provided, this replaces the widget normally created from [name].
+  /// The header's leading widget, sorting controls, resizing, padding, and
+  /// alignment continue to be handled by the table.
+  final Widget? headerWidget;
 
   /// An optional widget displayed at the beginning of the column header.
   /// This widget can be used to show additional content at the start of the header, before the column title.
