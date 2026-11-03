@@ -2,20 +2,21 @@ import 'dart:math' as math;
 
 import 'package:davi/davi.dart';
 import 'package:davi/src/internal/davi_context.dart';
-import 'package:davi/src/internal/viewport_state.dart';
 import 'package:davi/src/internal/theme_metrics/theme_metrics.dart';
+import 'package:davi/src/internal/viewport_state.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:meta/meta.dart';
 
 @internal
-class TableEvents<DATA> extends StatelessWidget {
+class TableEvents<DATA> extends StatefulWidget {
   const TableEvents(
       {super.key,
       required this.daviContext,
       required this.child,
       required this.rowRegions,
+      required this.unpinnedAreaBounds,
       required this.rowTheme});
 
   final Widget child;
@@ -23,28 +24,57 @@ class TableEvents<DATA> extends StatelessWidget {
 
   final RowRegionCache rowRegions;
 
+  /// The horizontal extent of the unpinned table area.
+  final Rect unpinnedAreaBounds;
+
   final RowThemeData rowTheme;
+
+  @override
+  State<TableEvents<DATA>> createState() => _TableEventsState<DATA>();
+}
+
+class _TableEventsState<DATA> extends State<TableEvents<DATA>> {
+  final _ScrollDragHandler _verticalScroller = _ScrollDragHandler();
+  final _ScrollDragHandler _horizontalScroller = _ScrollDragHandler();
+  Offset? _tapPosition;
+
+  @override
+  void dispose() {
+    _verticalScroller.dispose();
+    _horizontalScroller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final DaviThemeData theme = DaviTheme.of(context);
 
-    Widget widget = child;
+    Widget widget = this.widget.child;
 
-    if (daviContext.model.isRowsNotEmpty) {
+    if (this.widget.daviContext.model.isRowsNotEmpty) {
       // Updates logical row status on hover
       widget = MouseRegion(
           onEnter: _onEnter, onHover: _onHover, onExit: _onExit, child: widget);
 
-      if (daviContext.hasCallback) {
-        widget = GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: _buildOnTap(),
-            onDoubleTap: _buildOnDoubleTap(),
-            onSecondaryTap: _buildOnSecondaryTap(),
-            onSecondaryTapUp: _buildOnSecondaryTapUp(),
-            child: widget);
-      }
+      widget = GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: daviContext.hasCallback ? _onTapDown : null,
+          onTap: _buildOnTap(),
+          onDoubleTapDown: daviContext.hasCallback ? _onDoubleTapDown : null,
+          onDoubleTap: _buildOnDoubleTap(),
+          onSecondaryTap: _buildOnSecondaryTap(),
+          onSecondaryTapUp: _buildOnSecondaryTapUp(),
+          onVerticalDragStart: (details) =>
+              _verticalScroller.start(verticalScroll, details),
+          onVerticalDragUpdate: _verticalScroller.update,
+          onVerticalDragEnd: _verticalScroller.end,
+          onVerticalDragCancel: _verticalScroller.cancel,
+          onHorizontalDragStart: (details) =>
+              _horizontalScroller.start(_horizontalScrollAt(details), details),
+          onHorizontalDragUpdate: _horizontalScroller.update,
+          onHorizontalDragEnd: _horizontalScroller.end,
+          onHorizontalDragCancel: _horizontalScroller.cancel,
+          child: widget);
 
       widget = Listener(
           behavior: HitTestBehavior.translucent,
@@ -65,7 +95,22 @@ class TableEvents<DATA> extends StatelessWidget {
     return widget;
   }
 
+  DaviContext<DATA> get daviContext => widget.daviContext;
+
+  RowRegionCache get rowRegions => widget.rowRegions;
+
+  RowThemeData get rowTheme => widget.rowTheme;
+
   ScrollController get verticalScroll => daviContext.scrollControllers.vertical;
+
+  ScrollController _horizontalScrollAt(DragStartDetails details) {
+    final double horizontalPosition = details.localPosition.dx;
+    if (horizontalPosition >= widget.unpinnedAreaBounds.left &&
+        horizontalPosition <= widget.unpinnedAreaBounds.right) {
+      return daviContext.scrollControllers.unpinnedHorizontal;
+    }
+    return daviContext.scrollControllers.leftPinnedHorizontal;
+  }
 
   void _onEnter(PointerEnterEvent event) {
     _updateHover(event.localPosition);
@@ -131,6 +176,14 @@ class TableEvents<DATA> extends StatelessWidget {
     return mouseCursor ?? MouseCursor.defer;
   }
 
+  DATA? _dataAt(Offset position) {
+    final int? rowIndex = rowRegions.boundsIndex(position);
+    if (rowIndex != null && rowIndex < daviContext.model.rowsLength) {
+      return daviContext.model.rowAt(rowIndex);
+    }
+    return null;
+  }
+
   DATA? get _hoverData {
     DATA? data;
     if (daviContext.hoverNotifier.index != null) {
@@ -144,7 +197,8 @@ class TableEvents<DATA> extends StatelessWidget {
   GestureTapCallback? _buildOnTap() {
     if (daviContext.onRowTap != null) {
       return () {
-        DATA? data = _hoverData;
+        final Offset? position = _tapPosition;
+        DATA? data = position == null ? null : _dataAt(position);
         if (data != null) {
           daviContext.onRowTap!(data);
         }
@@ -153,16 +207,25 @@ class TableEvents<DATA> extends StatelessWidget {
     return null;
   }
 
+  void _onTapDown(TapDownDetails details) {
+    _tapPosition = details.localPosition;
+  }
+
   GestureTapCallback? _buildOnDoubleTap() {
     if (daviContext.onRowDoubleTap != null) {
       return () {
-        DATA? data = _hoverData;
+        final Offset? position = _tapPosition;
+        DATA? data = position == null ? null : _dataAt(position);
         if (data != null) {
           daviContext.onRowDoubleTap!(data);
         }
       };
     }
     return null;
+  }
+
+  void _onDoubleTapDown(TapDownDetails details) {
+    _tapPosition = details.localPosition;
   }
 
   GestureTapCallback? _buildOnSecondaryTap() {
@@ -225,5 +288,36 @@ class TableEvents<DATA> extends StatelessWidget {
       }
     }
     return KeyEventResult.ignored;
+  }
+}
+
+class _ScrollDragHandler {
+  Drag? _drag;
+
+  void start(ScrollController controller, DragStartDetails details) {
+    cancel();
+    if (controller.hasClients) {
+      _drag = controller.position.drag(details, _clearDrag);
+    }
+  }
+
+  void update(DragUpdateDetails details) => _drag?.update(details);
+
+  void end(DragEndDetails details) {
+    final Drag? drag = _drag;
+    _drag = null;
+    drag?.end(details);
+  }
+
+  void cancel() {
+    final Drag? drag = _drag;
+    _drag = null;
+    drag?.cancel();
+  }
+
+  void dispose() => cancel();
+
+  void _clearDrag() {
+    _drag = null;
   }
 }

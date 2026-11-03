@@ -159,6 +159,8 @@ class TableContentState<DATA> extends State<TableContent<DATA>> {
         child: TableEvents(
             daviContext: widget.daviContext,
             rowRegions: _viewportState.rowRegions,
+            unpinnedAreaBounds:
+                widget.layoutSettings.getAreaBounds(PinStatus.none),
             rowTheme: theme.row,
             child: FocusTraversalGroup(
                 policy: OrderedTraversalPolicy(), child: cells)));
