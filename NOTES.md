@@ -1,5 +1,16 @@
 # Project Notes
 
+## Touch interaction
+
+The table body now supports touch scrolling: swipe vertically to scroll rows
+and swipe horizontally to scroll the area where the gesture begins. The
+unpinned area and an overflowed left-pinned area use their respective scroll
+controllers.
+
+`onRowTap` and `onRowDoubleTap` now identify rows from the tap location, so
+they work on touch devices without requiring mouse hover. No API changes are
+required.
+
 ## Custom column header content
 
 `DaviColumn.headerWidget` lets a column use a custom widget for its main
